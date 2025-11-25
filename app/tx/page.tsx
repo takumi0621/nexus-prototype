@@ -1,14 +1,35 @@
 'use client'
 
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { useState } from 'react'
 import { Layout } from '@/components/Layout'
 import { fakeLogin } from '@/lib/fakeAuth'
 import Link from 'next/link'
 
 type DepositAmount = 3000 | 5000 | 10000
 
+// ページ本体：ここで Suspense を貼る
 export default function TransactionPage() {
+  return (
+    <Layout>
+      <Suspense
+        fallback={
+          <section className="space-y-2">
+            <h1 className="text-lg font-semibold">読み込み中…</h1>
+            <p className="text-[11px] text-slate-400">
+              取引情報を読み込んでいます。
+            </p>
+          </section>
+        }
+      >
+        <TxContent />
+      </Suspense>
+    </Layout>
+  )
+}
+
+// 実際に useSearchParams を使う部分を分離
+function TxContent() {
   const searchParams = useSearchParams()
   const carName = searchParams.get('carName') || ''
   const from = searchParams.get('from') || ''
@@ -29,24 +50,22 @@ export default function TransactionPage() {
 
   if (!valid) {
     return (
-      <Layout>
-        <section className="space-y-2">
-          <h1 className="text-lg font-semibold">リンクが無効です</h1>
-          <p className="text-[11px] text-slate-400">
-            取引情報が不完全か、リンクの有効期限が切れている可能性があります。
-          </p>
-          <p className="text-[11px] text-slate-400">
-            ホストから送られた最新のリンクを、そのまま再度開いてください。
-            それでも解決しない場合は、ホストに新しいリンクの発行を依頼してください。
-          </p>
-          <Link
-            href="/mini"
-            className="inline-block mt-2 text-[11px] text-cyan-400 underline underline-offset-2"
-          >
-            ← Nexus のトップに戻る
-          </Link>
-        </section>
-      </Layout>
+      <section className="space-y-2">
+        <h1 className="text-lg font-semibold">リンクが無効です</h1>
+        <p className="text-[11px] text-slate-400">
+          取引情報が不完全か、リンクの有効期限が切れている可能性があります。
+        </p>
+        <p className="text-[11px] text-slate-400">
+          ホストから送られた最新のリンクを、そのまま再度開いてください。
+          それでも解決しない場合は、ホストに新しいリンクの発行を依頼してください。
+        </p>
+        <Link
+          href="/mini"
+          className="inline-block mt-2 text-[11px] text-cyan-400 underline underline-offset-2"
+        >
+          ← Nexus のトップに戻る
+        </Link>
+      </section>
     )
   }
 
@@ -82,7 +101,7 @@ export default function TransactionPage() {
     : 'bg-amber-400'
 
   return (
-    <Layout>
+    <>
       <section className="space-y-1">
         <p className="text-[11px] text-slate-400">借り手モード</p>
         <h1 className="text-lg font-semibold">保証金をロックして予約する</h1>
@@ -91,7 +110,7 @@ export default function TransactionPage() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-4 space-y-3 text-sm">
+      <section className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-4 space-y-3 text-sm">
         <div className="flex justify-between items-start">
           <div>
             <div className="text-[11px] text-slate-400 mb-0.5">車種</div>
@@ -162,6 +181,6 @@ export default function TransactionPage() {
           </p>
         )}
       </section>
-    </Layout>
+    </>
   )
 }
