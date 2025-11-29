@@ -180,6 +180,21 @@ export default function HostPage() {
           </div>
         )}
       </section>
+
+      <footer className="mt-4 pt-3 border-t border-slate-900 flex items-center justify-between">
+        <Link
+          href="/mini"
+          className="text-[10px] text-slate-400 underline underline-offset-2 hover:text-slate-200"
+        >
+          Nexus ホームへ戻る
+        </Link>
+        <Link
+          href="/host/transactions"
+          className="text-[10px] text-slate-400 underline underline-offset-2 hover:text-slate-200"
+        >
+          取引一覧を見る（デモ）
+        </Link>
+      </footer>
     </Layout>
   )
 }
