@@ -12,6 +12,8 @@ type FormState = {
   endDate: string
 }
 
+type TxStatus = 'open' | 'released' | 'cancelled'
+
 type StoredTx = {
   id: string
   host: string
@@ -20,6 +22,7 @@ type StoredTx = {
   start?: string
   end?: string
   createdAt: string
+  status: TxStatus
 }
 
 const STORAGE_KEY = 'nexus_transactions_v1'
@@ -87,7 +90,7 @@ export default function HostPage() {
         ? (window.crypto as Crypto).randomUUID()
         : String(Date.now())
 
-    // この端末のブラウザに「取引メモ」として保存
+    // この端末のブラウザに「取引メモ」として保存（初期ステータス: open）
     saveTx({
       id,
       host,
@@ -96,6 +99,7 @@ export default function HostPage() {
       start: form.startDate || undefined,
       end: form.endDate || undefined,
       createdAt: new Date().toISOString(),
+      status: 'open',
     })
 
     const url = `${base}/tx?${params.toString()}`
