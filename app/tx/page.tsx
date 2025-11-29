@@ -1,186 +1,113 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Layout } from '@/components/Layout'
-import { fakeLogin } from '@/lib/fakeAuth'
 import Link from 'next/link'
+import { Layout } from '@/components/Layout'
 
-type DepositAmount = 3000 | 5000 | 10000
+type LockState = 'idle' | 'locking' | 'locked'
 
-// ページ本体：ここで Suspense を貼る
-export default function TransactionPage() {
-  return (
-    <Layout>
-      <Suspense
-        fallback={
-          <section className="space-y-2">
-            <h1 className="text-lg font-semibold">読み込み中…</h1>
-            <p className="text-[11px] text-slate-400">
-              取引情報を読み込んでいます。
-            </p>
-          </section>
-        }
-      >
-        <TxContent />
-      </Suspense>
-    </Layout>
-  )
-}
-
-// 実際に useSearchParams を使う部分を分離
-function TxContent() {
+export default function TxPage() {
   const searchParams = useSearchParams()
-  const carName = searchParams.get('carName') || ''
-  const from = searchParams.get('from') || ''
-  const to = searchParams.get('to') || ''
-  const amountStr = searchParams.get('amount') || ''
-  const amountNum = parseInt(amountStr, 10) as DepositAmount
 
-  const [locked, setLocked] = useState(false)
-  const [locking, setLocking] = useState(false)
-  const [statusMessage, setStatusMessage] = useState<string | null>(null)
-  const [user] = useState(() => fakeLogin('renter'))
+  const host = searchParams.get('host') || 'ホスト'
+  const car = searchParams.get('car') || '車両'
+  const deposit = searchParams.get('deposit') || '0'
+  const start = searchParams.get('start')
+  const end = searchParams.get('end')
 
-  const valid =
-    carName.length > 0 &&
-    from.length > 0 &&
-    to.length > 0 &&
-    (amountNum === 3000 || amountNum === 5000 || amountNum === 10000)
-
-  if (!valid) {
-    return (
-      <section className="space-y-2">
-        <h1 className="text-lg font-semibold">リンクが無効です</h1>
-        <p className="text-[11px] text-slate-400">
-          取引情報が不完全か、リンクの有効期限が切れている可能性があります。
-        </p>
-        <p className="text-[11px] text-slate-400">
-          ホストから送られた最新のリンクを、そのまま再度開いてください。
-          それでも解決しない場合は、ホストに新しいリンクの発行を依頼してください。
-        </p>
-        <Link
-          href="/mini"
-          className="inline-block mt-2 text-[11px] text-cyan-400 underline underline-offset-2"
-        >
-          ← Nexus のトップに戻る
-        </Link>
-      </section>
-    )
-  }
+  const [state, setState] = useState<LockState>('idle')
 
   const handleLock = () => {
-    if (locked || locking) return
-
-    setLocking(true)
-    setStatusMessage(
-      '保証金ロックのテストを実行中です。将来のバージョンでは、ここでUSDCがスマートコントラクトにロックされます。'
-    )
-
-    // v1 ではダミーで少し待ってからロック完了扱いにする
+    if (state !== 'idle') return
+    setState('locking')
     setTimeout(() => {
-      setLocked(true)
-      setLocking(false)
-      setStatusMessage(
-        '保証金をロックしました。（現在はデモモードで、実際の送金やロックは行われません）'
-      )
-      alert('保証金をロックしました。（プロトタイプのため、実際の送金は行われません）')
-    }, 600)
+      setState('locked')
+    }, 900)
   }
 
-  const statusLabel = locked
-    ? '保証金ロック済'
-    : locking
-    ? '保証金ロック処理中'
-    : '保証金待ち'
+  const stateLabel: Record<LockState, string> = {
+    idle: 'まだ保証金はロックされていません。',
+    locking: '保証金をロック中…（デモ）',
+    locked: '保証金がロックされた状態のデモ表示です。',
+  }
 
-  const statusDotClass = locked
-    ? 'bg-emerald-400'
-    : locking
-    ? 'bg-amber-300'
-    : 'bg-amber-400'
+  const stateColor: Record<LockState, string> = {
+    idle: 'text-slate-300',
+    locking: 'text-cyan-300',
+    locked: 'text-emerald-300',
+  }
 
   return (
-    <>
-      <section className="space-y-1">
-        <p className="text-[11px] text-slate-400">借り手モード</p>
-        <h1 className="text-lg font-semibold">保証金をロックして予約する</h1>
-        <p className="text-[11px] text-slate-400">
-          ログイン中: {user.name}（World Verified）
+    <Layout>
+      <section className="space-y-2">
+        <h1 className="text-xl font-semibold">保証金ロック（借り手用・デモ）</h1>
+        <p className="text-xs text-slate-300">
+          {host} さんとのカーシェア取引のために、保証金をロックするデモ画面です。
+          このバージョンでは実際の送金・ロックは行われません。
         </p>
       </section>
 
-      <section className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-4 space-y-3 text-sm">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="text-[11px] text-slate-400 mb-0.5">車種</div>
-            <div className="font-medium">{carName}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-[11px] text-slate-400 mb-0.5">ステータス</div>
-            <div className="inline-flex items-center gap-1 text-xs">
-              <span className={`inline-block w-2 h-2 rounded-full ${statusDotClass}`} />
-              <span>{statusLabel}</span>
-            </div>
-          </div>
+      <section className="mt-4 space-y-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+        <h2 className="text-xs font-semibold text-slate-200">取引の概要</h2>
+        <div className="space-y-2 text-[11px] text-slate-300">
+          <p>
+            <span className="text-slate-500">ホスト：</span>
+            {host}
+          </p>
+          <p>
+            <span className="text-slate-500">車両：</span>
+            {car}
+          </p>
+          <p>
+            <span className="text-slate-500">保証金：</span>
+            {deposit}（USDC 想定）
+          </p>
+          {(start || end) && (
+            <p>
+              <span className="text-slate-500">利用期間：</span>
+              {start || '未指定'} 〜 {end || '未指定'}
+            </p>
+          )}
         </div>
+      </section>
 
-        <div>
-          <div className="text-[11px] text-slate-400 mb-0.5">利用時間</div>
-          <div className="text-xs text-slate-200">
-            {from} → {to}
-          </div>
-        </div>
+      <section className="mt-3 space-y-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+        <h2 className="text-xs font-semibold text-slate-200">保証金ロック（デモ動作）</h2>
 
-        <div>
-          <div className="text-[11px] text-slate-400 mb-1">必要な保証金</div>
-          <div className="flex gap-2">
-            {[3000, 5000, 10000].map((v) => (
-              <button
-                key={v}
-                disabled
-                className={
-                  'flex-1 px-2 py-2 rounded-xl text-xs border ' +
-                  (amountNum === v
-                    ? 'bg-cyan-500 text-slate-950 border-cyan-400'
-                    : 'border-slate-600 bg-slate-950 opacity-60')
-                }
-              >
-                {v.toLocaleString()} 円
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <p className="text-[11px] text-slate-500">
-          この保証金は、将来のバージョンでは USDC としてスマートコントラクトにロックされ、取引が問題なく終了した場合は原則全額返金される想定です。
+        <p className={`text-[11px] ${stateColor[state]}`}>
+          {stateLabel[state]}
         </p>
 
         <button
+          type="button"
           onClick={handleLock}
-          disabled={locked || locking}
-          className={
-            'w-full mt-1 inline-flex items-center justify-center px-3 py-3 rounded-xl text-sm font-semibold ' +
-            (locked
-              ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-              : locking
-              ? 'bg-slate-700 text-slate-200 cursor-wait'
-              : 'bg-cyan-500 text-slate-950 active:scale-[0.99] transition-transform')
-          }
+          disabled={state !== 'idle'}
+          className="mt-2 w-full rounded-xl bg-cyan-500 px-4 py-3 text-xs font-semibold text-slate-950 text-center active:scale-[0.99] transition-transform disabled:opacity-60"
         >
-          {locked
-            ? '保証金ロック済み'
-            : locking
-            ? '保証金をロックしています…'
-            : '保証金をロックする（デモ）'}
+          {state === 'idle' && 'この内容で保証金をロックする（デモ）'}
+          {state === 'locking' && 'ロック中…'}
+          {state === 'locked' && 'ロック済み（デモ）'}
         </button>
 
-        {statusMessage && (
-          <p className="text-[11px] text-slate-400 mt-1">
-            {statusMessage}
-          </p>
-        )}
+        <p className="text-[10px] text-slate-500 mt-2">
+          ※ 実際のサービスでは、保証金の解放はホスト側の画面または
+          自動フローで行われます。このバージョンでは、借り手によるロック体験のみを
+          デモ表示しています。
+        </p>
       </section>
-    </>
+
+      <footer className="mt-4 pt-3 border-t border-slate-900 flex items-center justify-between">
+        <p className="text-[10px] text-slate-500">© {new Date().getFullYear()} Nexus</p>
+        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+          <Link href="/legal/terms" className="hover:text-slate-200 underline underline-offset-2">
+            利用規約
+          </Link>
+          <Link href="/legal/privacy" className="hover:text-slate-200 underline underline-offset-2">
+            プライバシーポリシー
+          </Link>
+        </div>
+      </footer>
+    </Layout>
   )
 }
