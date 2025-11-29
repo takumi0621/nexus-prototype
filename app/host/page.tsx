@@ -1,199 +1,184 @@
 'use client'
 
-import { Layout } from '@/components/Layout'
-import { fakeLogin } from '@/lib/fakeAuth'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import { Layout } from '@/components/Layout'
 
-type DepositAmount = 3000 | 5000 | 10000
-
-type LocalTransaction = {
-  id: string
+type FormState = {
+  hostName: string
   carName: string
-  from: string
-  to: string
-  amount: DepositAmount
-  status: 'pending' | 'locked' | 'completed'
+  deposit: string
+  startDate: string
+  endDate: string
 }
 
 export default function HostPage() {
-  const [host] = useState(() => fakeLogin('host'))
-  const [carName, setCarName] = useState('プリウス')
-  const [from, setFrom] = useState('2025-11-25 10:00')
-  const [to, setTo] = useState('2025-11-25 18:00')
-  const [amount, setAmount] = useState<DepositAmount>(3000)
-  const [transactions, setTransactions] = useState<LocalTransaction[]>([])
-  const [lastLink, setLastLink] = useState<string | null>(null)
+  const [form, setForm] = useState<FormState>({
+    hostName: '',
+    carName: '',
+    deposit: '',
+    startDate: '',
+    endDate: '',
+  })
 
-  useEffect(() => {
-    setTransactions([])
-  }, [])
+  const [link, setLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
-  const buildLink = (tx: LocalTransaction) => {
+  const handleChange = (field: keyof FormState) => (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setForm(prev => ({ ...prev, [field]: e.target.value }))
+  }
+
+  const handleCreateLink = (e: React.FormEvent) => {
+    e.preventDefault()
+    setCopied(false)
+
+    if (!form.deposit || !form.carName) {
+      alert('車の名前と保証金は入力してください。')
+      return
+    }
+
     const params = new URLSearchParams({
-      carName: tx.carName,
-      from: tx.from,
-      to: tx.to,
-      amount: String(tx.amount),
+      host: form.hostName || 'ホスト',
+      car: form.carName,
+      deposit: form.deposit,
     })
-    return window.location.origin + '/tx?' + params.toString()
+
+    if (form.startDate) params.set('start', form.startDate)
+    if (form.endDate) params.set('end', form.endDate)
+
+    // デモ用フラグ
+    params.set('demo', '1')
+
+    const base =
+      typeof window === 'undefined' ? '' : window.location.origin
+
+    const url = `${base}/tx?${params.toString()}`
+    setLink(url)
   }
 
-  const handleCreate = () => {
-    const tx: LocalTransaction = {
-      id: 'tx-' + Math.random().toString(36).slice(2, 8),
-      carName,
-      from,
-      to,
-      amount,
-      status: 'pending',
+  const handleCopy = async () => {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      alert('クリップボードにコピーできませんでした。')
     }
-    const next = [tx, ...transactions]
-    setTransactions(next)
-
-    if (typeof window !== 'undefined') {
-      const link = buildLink(tx)
-      setLastLink(link)
-    }
-  }
-
-  const handleCopy = () => {
-    if (!lastLink) return
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(lastLink).then(
-        () => {
-          alert('リンクをコピーしました。')
-        },
-        () => {
-          alert('コピーに失敗しました。手動でコピーしてください。')
-        },
-      )
-    } else {
-      window.prompt('このリンクをコピーしてください:', lastLink)
-    }
-  }
-
-  const buildRelativeHref = (tx: LocalTransaction) => {
-    const params = new URLSearchParams({
-      carName: tx.carName,
-      from: tx.from,
-      to: tx.to,
-      amount: String(tx.amount),
-    })
-    return '/tx?' + params.toString()
   }
 
   return (
     <Layout>
-      <section className="space-y-1">
-        <p className="text-[11px] text-slate-400">ホストモード</p>
-        <h1 className="text-lg font-semibold">車を貸すためのリンクを作成</h1>
-        <p className="text-[11px] text-slate-400">
-          ログイン中: {host.name}（World Verified）
+      <section className="space-y-3">
+        <h1 className="text-xl font-semibold">取引リンクを作成</h1>
+        <p className="text-xs text-slate-300">
+          カーシェアのホストとして、借り手に渡す「保証金ロック用リンク」を作成します。
         </p>
       </section>
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-4 space-y-3">
-        <div className="space-y-3 text-sm">
-          <div>
-            <label className="block text-[11px] text-slate-400 mb-1">車種</label>
+      <form
+        onSubmit={handleCreateLink}
+        className="mt-4 space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
+      >
+        <div className="space-y-1">
+          <label className="text-[11px] text-slate-400">ホスト名（任意）</label>
+          <input
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-cyan-400"
+            placeholder="例: たくみ"
+            value={form.hostName}
+            onChange={handleChange('hostName')}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[11px] text-slate-400">車の名前</label>
+          <input
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-cyan-400"
+            placeholder="例: Prius / Model 3 など"
+            value={form.carName}
+            onChange={handleChange('carName')}
+            required
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[11px] text-slate-400">
+            保証金（デモ。実際の送金は行われません）
+          </label>
+          <input
+            type="number"
+            min={0}
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-cyan-400"
+            placeholder="例: 200 (USDC 想定)"
+            value={form.deposit}
+            onChange={handleChange('deposit')}
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] text-slate-400">利用開始日（任意）</label>
             <input
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
-              value={carName}
-              onChange={(e) => setCarName(e.target.value)}
+              type="date"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-cyan-400"
+              value={form.startDate}
+              onChange={handleChange('startDate')}
             />
           </div>
-          <div className="space-y-2">
-            <label className="block text-[11px] text-slate-400 mb-1">利用時間</label>
-            <div className="space-y-1">
-              <input
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm mb-1"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                placeholder="開始（例: 2025-11-25 10:00）"
-              />
-              <input
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                placeholder="終了（例: 2025-11-25 18:00）"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] text-slate-400 mb-1">必要な保証金</label>
-            <div className="flex gap-2">
-              {[3000, 5000, 10000].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setAmount(v as DepositAmount)}
-                  className={
-                    'flex-1 px-2 py-2 rounded-xl text-xs border ' +
-                    (amount === v
-                      ? 'bg-cyan-500 text-slate-950 border-cyan-400'
-                      : 'border-slate-600 bg-slate-950')
-                  }
-                >
-                  {v.toLocaleString()} 円
-                </button>
-              ))}
-            </div>
+          <div className="space-y-1">
+            <label className="text-[11px] text-slate-400">利用終了日（任意）</label>
+            <input
+              type="date"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-cyan-400"
+              value={form.endDate}
+              onChange={handleChange('endDate')}
+            />
           </div>
         </div>
 
         <button
-          onClick={handleCreate}
-          className="w-full mt-1 inline-flex items-center justify-center px-3 py-3 rounded-xl bg-cyan-500 text-slate-950 text-sm font-semibold active:scale-[0.99] transition-transform"
+          type="submit"
+          className="w-full rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 text-center active:scale-[0.99] transition-transform disabled:opacity-60"
         >
-          借り手に渡すリンクを作成
+          保証金リンクを作成する
         </button>
+      </form>
 
-        {lastLink && (
-          <div className="mt-4 space-y-1">
-            <p className="text-[11px] text-slate-400">最新のリンク（借り手に送ってください）</p>
-            <div className="flex gap-2 items-center">
-              <input
-                className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-[11px]"
-                value={lastLink}
-                readOnly
-              />
+      <section className="mt-4 space-y-3">
+        <h2 className="text-xs font-semibold text-slate-200">
+          2. 借り手にリンクを送る
+        </h2>
+        <p className="text-[11px] text-slate-400">
+          作成されたリンクを、チャットアプリなどで借り手に送ってください。
+          借り手がリンクを開くと、保証金ロックのデモ画面（/tx）が開きます。
+        </p>
+
+        {link && (
+          <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="text-[11px] text-slate-400">作成されたリンク</p>
+            <div className="rounded-lg bg-slate-950/60 px-3 py-2 text-[11px] break-all text-slate-200">
+              {link}
+            </div>
+            <div className="flex gap-2">
               <button
+                type="button"
                 onClick={handleCopy}
-                className="px-3 py-2 rounded-xl bg-slate-700 text-[11px] font-medium"
+                className="flex-1 rounded-lg border border-slate-700 px-3 py-2 text-[11px] text-slate-200 text-center active:scale-[0.99] transition-transform"
               >
-                コピー
+                {copied ? 'コピーしました ✅' : 'リンクをコピー'}
               </button>
+              <Link
+                href={link}
+                className="flex-1 rounded-lg bg-slate-100 px-3 py-2 text-[11px] font-semibold text-slate-900 text-center active:scale-[0.99] transition-transform"
+              >
+                自分で開いてみる
+              </Link>
             </div>
           </div>
         )}
-      </section>
-
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/20 px-4 py-3 space-y-2">
-        <h2 className="text-xs font-semibold">このセッションで作成した取引</h2>
-        {transactions.length === 0 && (
-          <p className="text-[11px] text-slate-500">まだ作成された取引はありません。</p>
-        )}
-        <ul className="space-y-2 text-[11px]">
-          {transactions.map((t) => (
-            <li key={t.id} className="border border-slate-800 rounded-xl p-2 flex justify-between items-center">
-              <div>
-                <div className="font-medium text-xs">
-                  {t.carName} / {t.amount.toLocaleString()}円
-                </div>
-                <div className="text-slate-400">
-                  {t.from} → {t.to}
-                </div>
-                <div className="text-slate-500">ステータス: {t.status}</div>
-              </div>
-              <Link
-                href={buildRelativeHref(t)}
-                className="text-cyan-400 underline underline-offset-2 decoration-dotted"
-              >
-                借り手画面
-              </Link>
-            </li>
-          ))}
-        </ul>
       </section>
     </Layout>
   )
