@@ -9,13 +9,21 @@ export default function HomePage() {
       <section className="space-y-2">
         <h1 className="text-xl font-semibold">Nexus</h1>
         <p className="text-xs text-slate-300">
-          World Verified なユーザー同士で、保証金つきの安心カーシェアを行うためのミニアプリです。
+          World Verified なユーザー同士で、
+          個人間カーシェアなどの「保証金の合意内容」を記録するためのアプリです。
         </p>
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-3 mt-3">
         <div className="space-y-1">
-          <p className="text-[11px] text-slate-400">まずは使い方を選んでください</p>
+          <p className="text-[11px] text-slate-400">
+            v1 では、保証金の金額や利用期間などを記録し、当事者同士での合意をサポートします。
+          </p>
+          <p className="text-[11px] text-amber-300">
+            アプリ内での送金・ロックは行われません。
+            実際の支払いは、銀行振込や他の手段で当事者間で行ってください。
+            将来のバージョンで USDC ロックなどへの対応を検討しています。
+          </p>
         </div>
 
         <div className="space-y-3">
@@ -31,31 +39,25 @@ export default function HomePage() {
             <p className="text-[11px] text-slate-400">
               ホストから渡されたリンク
               <span className="text-slate-200">（/tx?...）</span>
-              をタップすると、保証金ロック画面が開きます。
+              をタップすると、保証金の合意内容確認画面が開きます。
             </p>
             <p className="text-[11px] text-slate-500">
-              この画面から直接借り手モードには入りません。ホストから送られたURL経由でアクセスしてください。
+              この画面から直接借り手モードには入りません。ホストから送られた URL 経由でアクセスしてください。
             </p>
           </div>
         </div>
       </section>
 
       <section className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-4 space-y-2">
-        <h2 className="text-xs font-semibold">このアプリについて</h2>
+        <h2 className="text-xs font-semibold">このバージョンについて</h2>
         <p className="text-[11px] text-slate-300">
-          Nexus は、カーシェアなどの個人間取引で発生する
-          <span className="font-semibold">「もしもの時のための保証金」</span>
-          を、一時的にロックしておくためのレイヤーです。
+          このバージョンの Nexus は、保証金の条件を「見える化・記録」することにフォーカスしています。
         </p>
         <ul className="text-[11px] text-slate-400 list-disc list-inside space-y-1">
-          <li>ホストが「取引リンク」を作成します。</li>
-          <li>借り手はリンクを開いて、保証金をロックします。</li>
-          <li>取引が問題なく終了したら、保証金は原則全額返金されます。</li>
+          <li>ホストが保証金の条件を入力し、リンクを作成。</li>
+          <li>借り手がリンクを開き、内容を確認・合意。</li>
+          <li>ホストは自分の端末で、作成した取引メモを一覧で確認。</li>
         </ul>
-        <p className="text-[11px] text-amber-300 mt-1">
-          現在のバージョンはプロトタイプであり、表示される保証金ロックはデモ動作です。
-          実際の送金・ロックは行われません。将来のバージョンで USDC によるロックに対応予定です。
-        </p>
       </section>
 
       <footer className="mt-4 pt-3 border-t border-slate-900 flex items-center justify-between">

@@ -1,57 +1,47 @@
-import { Layout } from '@/components/Layout'
+'use client'
+
 import Link from 'next/link'
+import { Layout } from '@/components/Layout'
 
 export default function PrivacyPage() {
   return (
     <Layout>
-      <section className="space-y-3">
-        <h1 className="text-lg font-semibold">プライバシーポリシー（ベータ版）</h1>
-        <p className="text-[11px] text-slate-400">
-          このプライバシーポリシーは、Nexus ミニアプリ（以下「本サービス」）のベータ版における、データの取扱い方針を示す簡易版です。
+      <section className="space-y-2">
+        <h1 className="text-xl font-semibold">プライバシーポリシー（Nexus v1）</h1>
+        <p className="text-xs text-slate-300">
+          この画面はプロダクトの概要を示すための簡易版です。
+          正式運用時には、別途詳細なポリシーを公開します。
         </p>
-
-        <div className="space-y-2 text-[11px] text-slate-300">
-          <section>
-            <h2 className="font-semibold text-xs mb-1">1. 取得する情報</h2>
-            <p>
-              本サービスは、取引ID、車両情報、利用時間、保証金額など、取引に必要な最小限の情報をアプリ内状態として一時的に保持します。
-              現時点では、サーバー側データベースへの永続的な保存は行っていません。
-            </p>
-          </section>
-
-          <section>
-            <h2 className="font-semibold text-xs mb-1">2. World App / World ID に関する情報</h2>
-            <p>
-              将来、World App および World ID と連携する場合、本人確認済みであることを示す情報やウォレットアドレス等を利用する可能性があります。
-              その場合でも、必要最小限の範囲でのみ利用し、第三者への提供は行いません（法令に基づく場合を除きます）。
-            </p>
-          </section>
-
-          <section>
-            <h2 className="font-semibold text-xs mb-1">3. ログ情報</h2>
-            <p>
-              開発・品質改善のため、エラーや利用状況に関するログを収集する場合があります。
-              これらの情報は、個人を特定することを目的として利用されることはありません。
-            </p>
-          </section>
-
-          <section>
-            <h2 className="font-semibold text-xs mb-1">4. ポリシーの変更</h2>
-            <p>
-              本サービスの機能追加や法令対応に伴い、本ポリシーの内容を変更する場合があります。
-              重要な変更がある場合は、本サービス内でお知らせいたします。
-            </p>
-          </section>
-        </div>
-
-        <p className="text-[10px] text-slate-500">
-          本ポリシーに関するご質問がある場合は、開発者までお問い合わせください。
-        </p>
-
-        <Link href="/mini" className="inline-block text-[11px] text-cyan-400 underline underline-offset-2">
-          ← Nexus ミニアプリに戻る
-        </Link>
       </section>
+
+      <section className="mt-4 space-y-2 text-[11px] text-slate-300">
+        <p>
+          1.
+          Nexus v1 は、ホスト名・車両名・保証金の金額・利用期間などの「取引に関するメモ情報」を扱います。
+        </p>
+        <p>
+          2.
+          現時点のバージョンでは、これらの情報はユーザーの端末内（ブラウザのローカルストレージ）に保存されます。
+          サーバー側での永続保存は行っていません。
+        </p>
+        <p>
+          3.
+          将来、サーバーやブロックチェーン上で情報を保存する場合は、保存される項目・目的・保管期間などをあらためて明示します。
+        </p>
+        <p>
+          4.
+          ユーザーは、自身の端末のセキュリティ（画面ロックや OS のアップデート等）を適切に管理する責任を負います。
+        </p>
+      </section>
+
+      <footer className="mt-4 pt-3 border-t border-slate-900">
+        <Link
+          href="/mini"
+          className="text-[10px] text-slate-400 underline underline-offset-2 hover:text-slate-200"
+        >
+          Nexus ホームへ戻る
+        </Link>
+      </footer>
     </Layout>
   )
 }

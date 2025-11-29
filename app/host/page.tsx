@@ -12,6 +12,30 @@ type FormState = {
   endDate: string
 }
 
+type StoredTx = {
+  id: string
+  host: string
+  car: string
+  deposit: string
+  start?: string
+  end?: string
+  createdAt: string
+}
+
+const STORAGE_KEY = 'nexus_transactions_v1'
+
+function saveTx(tx: StoredTx) {
+  if (typeof window === 'undefined') return
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const list: StoredTx[] = raw ? JSON.parse(raw) : []
+    list.push(tx)
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  } catch {
+    // v1 はローカル記録なので、失敗しても致命的ではない
+  }
+}
+
 export default function HostPage() {
   const [form, setForm] = useState<FormState>({
     hostName: '',
@@ -39,20 +63,40 @@ export default function HostPage() {
       return
     }
 
+    const host = form.hostName || 'ホスト'
+    const car = form.carName
+    const deposit = form.deposit
+
     const params = new URLSearchParams({
-      host: form.hostName || 'ホスト',
-      car: form.carName,
-      deposit: form.deposit,
+      host,
+      car,
+      deposit,
     })
 
     if (form.startDate) params.set('start', form.startDate)
     if (form.endDate) params.set('end', form.endDate)
 
-    // デモ用フラグ
-    params.set('demo', '1')
+    // v1 では「合意内容の確認画面」としてのみ機能
+    params.set('mode', 'record')
 
     const base =
       typeof window === 'undefined' ? '' : window.location.origin
+
+    const id =
+      typeof window !== 'undefined' && 'crypto' in window
+        ? (window.crypto as Crypto).randomUUID()
+        : String(Date.now())
+
+    // この端末のブラウザに「取引メモ」として保存
+    saveTx({
+      id,
+      host,
+      car,
+      deposit,
+      start: form.startDate || undefined,
+      end: form.endDate || undefined,
+      createdAt: new Date().toISOString(),
+    })
 
     const url = `${base}/tx?${params.toString()}`
     setLink(url)
@@ -74,7 +118,11 @@ export default function HostPage() {
       <section className="space-y-3">
         <h1 className="text-xl font-semibold">取引リンクを作成</h1>
         <p className="text-xs text-slate-300">
-          カーシェアのホストとして、借り手に渡す「保証金ロック用リンク」を作成します。
+          カーシェアのホストとして、借り手に渡す「保証金の合意内容を確認するリンク」を作成します。
+        </p>
+        <p className="text-[11px] text-amber-300">
+          v1 の Nexus は、保証金の金額や条件を「記録する」ためのレイヤーです。
+          アプリ内での送金・ロックは行われません。実際の支払いは、銀行振込や他の手段で当事者間で行ってください。
         </p>
       </section>
 
@@ -105,13 +153,13 @@ export default function HostPage() {
 
         <div className="space-y-1">
           <label className="text-[11px] text-slate-400">
-            保証金（デモ。実際の送金は行われません）
+            保証金の金額（アプリ外で支払われる想定）
           </label>
           <input
             type="number"
             min={0}
             className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-cyan-400"
-            placeholder="例: 200 (USDC 想定)"
+            placeholder="例: 200（USDC 相当など）"
             value={form.deposit}
             onChange={handleChange('deposit')}
             required
@@ -153,7 +201,7 @@ export default function HostPage() {
         </h2>
         <p className="text-[11px] text-slate-400">
           作成されたリンクを、チャットアプリなどで借り手に送ってください。
-          借り手がリンクを開くと、保証金ロックのデモ画面（/tx）が開きます。
+          借り手がリンクを開くと、保証金の内容を確認する画面（/tx）が開きます。
         </p>
 
         {link && (
@@ -192,7 +240,7 @@ export default function HostPage() {
           href="/host/transactions"
           className="text-[10px] text-slate-400 underline underline-offset-2 hover:text-slate-200"
         >
-          取引一覧を見る（デモ）
+          取引一覧を見る
         </Link>
       </footer>
     </Layout>

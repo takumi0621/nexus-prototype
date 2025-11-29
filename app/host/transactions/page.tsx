@@ -1,99 +1,102 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Layout } from '@/components/Layout'
 
-type TxStatus = 'pending' | 'locked' | 'released'
-
-type DemoTx = {
+type StoredTx = {
   id: string
-  title: string
+  host: string
   car: string
-  borrower: string
   deposit: string
-  status: TxStatus
+  start?: string
+  end?: string
+  createdAt: string
 }
 
-const demoTxs: DemoTx[] = [
-  {
-    id: 'demo',
-    title: 'Prius 1日レンタル',
-    car: 'Prius',
-    borrower: '山田さん',
-    deposit: '200',
-    status: 'locked',
-  },
-  {
-    id: 'demo-2',
-    title: 'Model 3 半日レンタル',
-    car: 'Model 3',
-    borrower: '佐藤さん',
-    deposit: '300',
-    status: 'pending',
-  },
-]
-
-const statusLabel: Record<TxStatus, string> = {
-  pending: '保証金 未ロック',
-  locked: '保証金 ロック中',
-  released: '保証金 解放済み',
-}
-
-const statusColor: Record<TxStatus, string> = {
-  pending: 'text-amber-300',
-  locked: 'text-emerald-300',
-  released: 'text-slate-400',
-}
+const STORAGE_KEY = 'nexus_transactions_v1'
 
 export default function HostTransactionsPage() {
+  const [txs, setTxs] = useState<StoredTx[]>([])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY)
+      if (!raw) return
+      const list = JSON.parse(raw) as StoredTx[]
+      list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+      setTxs(list)
+    } catch {
+      // ローカル記録の読み込みに失敗しても致命的ではない
+    }
+  }, [])
+
   return (
     <Layout>
       <section className="space-y-2">
-        <h1 className="text-xl font-semibold">取引一覧（ホスト用・デモ）</h1>
+        <h1 className="text-xl font-semibold">取引一覧（ホスト用）</h1>
         <p className="text-xs text-slate-300">
-          あなたがホストとして作成した取引の一覧サンプルです。
-          実際のデータではなく、UI イメージを確認するためのデモです。
+          この端末で作成した「保証金の合意内容」が一覧で表示されます。
+        </p>
+        <p className="text-[11px] text-amber-300">
+          v1 の Nexus は、保証金の金額や期間などを記録するためのツールです。
+          アプリ内での送金・ロックは行われません。
+          実際の支払いは、銀行振込や他の手段で当事者間で行ってください。
         </p>
       </section>
 
       <section className="mt-3 space-y-2">
-        {demoTxs.map(tx => (
-          <Link
+        {txs.length === 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+            <p className="text-[11px] text-slate-300">まだ取引がありません。</p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              「取引リンクを作成」画面から取引を登録すると、ここに表示されます。
+            </p>
+          </div>
+        )}
+
+        {txs.map(tx => (
+          <div
             key={tx.id}
-            href={tx.id === 'demo' ? '/host/transactions/demo' : '#'}
-            className={`block rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 ${
-              tx.id === 'demo' ? 'active:scale-[0.99] transition-transform' : 'opacity-60'
-            }`}
+            className="rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-slate-100">{tx.title}</p>
-                <p className="text-[11px] text-slate-400">
-                  車両: {tx.car} / 借り手: {tx.borrower}
+                <p className="text-sm font-semibold text-slate-100">
+                  {tx.car || '車両'}
                 </p>
+                <p className="text-[11px] text-slate-400">
+                  ホスト: {tx.host} / 保証金: {tx.deposit}
+                </p>
+                {(tx.start || tx.end) && (
+                  <p className="text-[11px] text-slate-500">
+                    利用期間: {tx.start || '未指定'} 〜 {tx.end || '未指定'}
+                  </p>
+                )}
               </div>
               <div className="text-right space-y-1">
-                <p className="text-[11px] text-slate-300">{tx.deposit} USDC</p>
-                <p className={`text-[10px] font-medium ${statusColor[tx.status]}`}>
-                  {statusLabel[tx.status]}
+                <p className="text-[11px] text-emerald-300 font-semibold">
+                  ステータス: 合意内容を記録（支払いはアプリ外）
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  作成日時:{' '}
+                  {tx.createdAt
+                    ? new Date(tx.createdAt).toLocaleString()
+                    : '不明'}
                 </p>
               </div>
             </div>
-            {tx.id !== 'demo' && (
-              <p className="mt-1 text-[10px] text-slate-500">
-                ※ この行は UI イメージ用のダミーです（詳細画面はまだありません）。
-              </p>
-            )}
-          </Link>
+          </div>
         ))}
       </section>
 
       <section className="mt-4 space-y-2 rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3">
-        <h2 className="text-xs font-semibold text-slate-200">この画面の役割（将来のイメージ）</h2>
+        <h2 className="text-xs font-semibold text-slate-200">将来の拡張イメージ</h2>
         <ul className="text-[11px] text-slate-400 list-disc list-inside space-y-1">
-          <li>ホストが、自分の全ての取引のステータスを一覧で確認する。</li>
-          <li>ロック中の取引に対して「解放」操作を行う入口になる。</li>
-          <li>将来的に、トラブル時のフラグやメモを表示することも想定。</li>
+          <li>本番では、USDC 等のロック情報と連携してステータスを管理。</li>
+          <li>ロック中 / 解放済み / キャンセルなどの状態をホストが一元管理。</li>
+          <li>トラブル時のメモややり取りの記録機能などを追加予定です。</li>
         </ul>
       </section>
 
@@ -102,7 +105,7 @@ export default function HostTransactionsPage() {
           href="/host"
           className="text-[10px] text-slate-400 underline underline-offset-2 hover:text-slate-200"
         >
-          ← 新しい取引リンクを作成する
+          ← 取引リンクを作成する
         </Link>
         <Link
           href="/mini"
