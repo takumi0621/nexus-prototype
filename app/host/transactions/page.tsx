@@ -4,348 +4,300 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Layout } from '@/components/Layout'
 
-type TxStatus = 'pending' | 'locked' | 'released' | 'cancelled'
-type TxRating = 'none' | 'good' | 'normal' | 'bad'
-
-type StoredTx = {
+type Tx = {
   id: string
-  host: string
-  car: string
-  deposit: string
-  start?: string
-  end?: string
-  status: TxStatus
-  rating: TxRating
-  createdAt: string
+  host_client_id: string | null
+  host_name: string | null
+  car_name: string | null
+  deposit: number
+  start_date: string | null
+  end_date: string | null
+  status: string | null
+  rating: string | null
+  created_at: string
 }
 
-const STORAGE_KEY = 'nexus-host-txs-v1'
-
-function loadTxs(): StoredTx[] {
-  if (typeof window === 'undefined') return []
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-
-    const parsed = JSON.parse(raw) as Partial<StoredTx>[]
-
-    return parsed.map((tx, index) => {
-      const status: TxStatus =
-        tx.status === 'locked' ||
-        tx.status === 'released' ||
-        tx.status === 'cancelled'
-          ? tx.status
-          : 'pending'
-
-      const rating: TxRating =
-        tx.rating === 'good' ||
-        tx.rating === 'normal' ||
-        tx.rating === 'bad'
-          ? tx.rating
-          : 'none'
-
-      return {
-        id: tx.id ?? `tx-${index}-${Date.now()}`,
-        host: tx.host ?? 'ホスト',
-        car: tx.car ?? '',
-        deposit: tx.deposit ?? '0',
-        start: tx.start,
-        end: tx.end,
-        createdAt: tx.createdAt ?? new Date().toISOString(),
-        status,
-        rating,
-      }
-    })
-  } catch {
-    return []
-  }
-}
-
-function saveTxs(txs: StoredTx[]) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(txs))
-}
-
-function statusLabel(status: TxStatus) {
-  switch (status) {
-    case 'pending':
-      return 'リンク発行済み'
-    case 'locked':
-      return '保証金ロック中（デモ）'
-    case 'released':
-      return '取引完了・保証金解放済み'
-    case 'cancelled':
-      return 'キャンセル済み'
-  }
-}
-
-function statusBadgeClass(status: TxStatus) {
-  switch (status) {
-    case 'pending':
-      return 'bg-slate-800 text-slate-200'
-    case 'locked':
-      return 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
-    case 'released':
-      return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40'
-    case 'cancelled':
-      return 'bg-slate-800 text-slate-400 line-through'
-  }
-}
-
-function ratingLabel(rating: TxRating) {
-  switch (rating) {
-    case 'good':
-      return 'とても良かった'
-    case 'normal':
-      return '問題なく完了'
-    case 'bad':
-      return 'トラブルがあった'
-    case 'none':
-    default:
-      return '未評価'
-  }
-}
+type UiStatus = 'idle' | 'loading'
 
 export default function HostTransactionsPage() {
-  const [txs, setTxs] = useState<StoredTx[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [txs, setTxs] = useState<Tx[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [rowState, setRowState] = useState<Record<string, UiStatus>>({})
 
+  // 一覧読み込み
   useEffect(() => {
-    setTxs(loadTxs())
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch('/api/nexus/transactions', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.ok) {
+          throw new Error(json.error || '読み込みに失敗しました')
+        }
+        setTxs(json.transactions || [])
+      } catch (e: any) {
+        setError(e?.message ?? '読み込みに失敗しました')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
 
-  const toggleDetails = (id: string) => {
-    setSelectedId(prev => (prev === id ? null : id))
+  const setRowLoading = (id: string, isLoading: boolean) => {
+    setRowState(prev => ({ ...prev, [id]: isLoading ? 'loading' : 'idle' }))
   }
 
-  const markLocked = (id: string) => {
-    setTxs(prev => {
-      const next: StoredTx[] = prev.map(tx =>
-        tx.id === id
-          ? {
-              ...tx,
-              status: 'locked' as TxStatus,
-            }
-          : tx,
-      )
-      saveTxs(next)
-      return next
-    })
+  const applyUpdateToLocal = (updated: Tx) => {
+    setTxs(prev => prev.map(tx => (tx.id === updated.id ? updated : tx)))
   }
 
-  const completeWithRating = (id: string, rating: TxRating) => {
+  // 取引完了 + 評価
+  const handleCompleteWithRating = async (tx: Tx) => {
+    if (tx.status && tx.status !== 'locked') {
+      alert('この取引はすでに完了またはキャンセルされています。')
+      return
+    }
+
     const ok = window.confirm(
-      '取引を完了して、保証金を解放したことにします。元に戻せません。本当に実行しますか？',
+      'この取引を「完了」として記録します。保証金は解放された前提になります。\nこの操作は基本的に元に戻せません。続行しますか？',
     )
     if (!ok) return
 
-    setTxs(prev => {
-      const next: StoredTx[] = prev.map(tx =>
-        tx.id === id
-          ? {
-              ...tx,
-              status: 'released' as TxStatus,
-              rating,
-            }
-          : tx,
-      )
-      saveTxs(next)
-      return next
-    })
+    const ratingInput = window.prompt(
+      '借り手の評価を 1〜5 で入力してください（例: 5 = とても良い、1 = 良くなかった）。\n未入力のまま OK を押すと評価なしで記録されます。',
+    )
 
-    setSelectedId(null)
+    let rating: string | null = null
+    if (ratingInput && ratingInput.trim() !== '') {
+      const num = Number(ratingInput.trim())
+      if (!Number.isNaN(num) && num >= 1 && num <= 5) {
+        rating = String(num)
+      } else {
+        alert('1〜5 の数値ではないため、今回は評価なしとして記録します。')
+      }
+    }
+
+    try {
+      setRowLoading(tx.id, true)
+      const res = await fetch(`/api/nexus/transactions/${tx.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'released', rating }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || '更新に失敗しました')
+      }
+      applyUpdateToLocal(json.transaction as Tx)
+    } catch (e: any) {
+      alert(`完了処理に失敗しました: ${e?.message ?? '不明なエラー'}`)
+    } finally {
+      setRowLoading(tx.id, false)
+    }
   }
 
-  const cancelTx = (id: string) => {
+  // キャンセル
+  const handleCancel = async (tx: Tx) => {
+    if (tx.status && tx.status !== 'locked') {
+      alert('この取引はすでに完了またはキャンセルされています。')
+      return
+    }
+
     const ok = window.confirm(
-      'この取引をキャンセルとして記録します。実際の送金には影響しません。本当にキャンセルしますか？',
+      'この取引を「キャンセル」として記録します。\n本当にキャンセル済みであることを確認してください。',
     )
     if (!ok) return
 
-    setTxs(prev => {
-      const next: StoredTx[] = prev.map(tx =>
-        tx.id === id
-          ? {
-              ...tx,
-              status: 'cancelled' as TxStatus,
-            }
-          : tx,
-      )
-      saveTxs(next)
-      return next
-    })
+    try {
+      setRowLoading(tx.id, true)
+      const res = await fetch(`/api/nexus/transactions/${tx.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled', rating: null }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || '更新に失敗しました')
+      }
+      applyUpdateToLocal(json.transaction as Tx)
+    } catch (e: any) {
+      alert(`キャンセル処理に失敗しました: ${e?.message ?? '不明なエラー'}`)
+    } finally {
+      setRowLoading(tx.id, false)
+    }
+  }
 
-    setSelectedId(null)
+  const renderStatusBadge = (tx: Tx) => {
+    const s = tx.status ?? 'locked'
+    if (s === 'released') {
+      return (
+        <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/40">
+          完了（解放済）
+        </span>
+      )
+    }
+    if (s === 'cancelled') {
+      return (
+        <span className="text-[11px] px-2 py-1 rounded-full bg-rose-600/20 text-rose-300 border border-rose-500/40">
+          キャンセル
+        </span>
+      )
+    }
+    return (
+      <span className="text-[11px] px-2 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/40">
+        ロック済（進行中）
+      </span>
+    )
+  }
+
+  const renderRating = (tx: Tx) => {
+    if (!tx.rating) return null
+    const num = Number(tx.rating)
+    let label = `評価: ${tx.rating}`
+    if (!Number.isNaN(num)) {
+      if (num >= 5) label = '評価: ⭐️⭐️⭐️⭐️⭐️ とても良い'
+      else if (num === 4) label = '評価: ⭐️⭐️⭐️⭐️ 良い'
+      else if (num === 3) label = '評価: ⭐️⭐️⭐️ ふつう'
+      else if (num === 2) label = '評価: ⭐️⭐️ あまり良くない'
+      else if (num <= 1) label = '評価: ⭐️ 良くなかった'
+    }
+    return (
+      <p className="text-[11px] text-slate-300 mt-1">
+        {label}
+      </p>
+    )
   }
 
   return (
     <Layout>
-      <section className="space-y-2">
-        <h1 className="text-xl font-semibold">取引一覧（ホスト用メモ）</h1>
-        <p className="text-xs text-slate-300">
-          ここでは、あなたが作成した取引リンクと、その後のステータスを確認できます。
-          <br />
-          現在のバージョンでは、あくまで
-          <span className="font-semibold text-slate-100">
-            「保証金ロックの合意状況をメモするだけ」
-          </span>
-          であり、実際のお金の送金やロックは行われません。
-        </p>
-
-        <Link
-          href="/host"
-          className="inline-flex items-center text-[11px] text-cyan-300 underline underline-offset-2"
-        >
-          ← 取引リンクを作成する画面に戻る
-        </Link>
-      </section>
-
-      <section className="mt-4 space-y-3">
-        {txs.length === 0 ? (
-          <p className="text-[11px] text-slate-400">
-            まだ記録された取引はありません。
-            <br />
-            「取引リンクを作成」画面からリンクを発行し、借り手に共有すると、この一覧に記録されます。
+      {/* 上部ナビ */}
+      <header className="mb-3 flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold">取引一覧（ホスト用）</h1>
+          <p className="text-xs text-slate-300">
+            借り手が保証金ロックに同意した取引の記録を表示します。
+            完了・キャンセルした取引はここからステータスを更新してください。
           </p>
-        ) : (
-          <ul className="space-y-3">
-            {txs.map(tx => {
-              const isSelected = tx.id === selectedId
-              const created = new Date(tx.createdAt)
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Link
+            href="/host"
+            className="text-[11px] text-cyan-300 underline underline-offset-2"
+          >
+            ← 取引リンク作成に戻る
+          </Link>
+          <Link
+            href="/"
+            className="text-[10px] text-slate-400 underline underline-offset-2"
+          >
+            Nexus ホーム
+          </Link>
+        </div>
+      </header>
 
-              return (
-                <li
-                  key={tx.id}
-                  className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3 space-y-2"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-100">
-                        {tx.car || '車両名未入力'}
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        保証金メモ:{' '}
-                        <span className="font-semibold text-slate-100">
-                          {tx.deposit || '0'}
-                        </span>{' '}
-                        （USDC 想定）
-                      </p>
-                      <p className="text-[10px] text-slate-500">
-                        作成日:{' '}
-                        {created.toLocaleDateString('ja-JP', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                      {(tx.start || tx.end) && (
-                        <p className="text-[10px] text-slate-500">
-                          予定期間:{' '}
-                          {tx.start
-                            ? new Date(tx.start).toLocaleDateString('ja-JP')
-                            : '未指定'}{' '}
-                          〜{' '}
-                          {tx.end
-                            ? new Date(tx.end).toLocaleDateString('ja-JP')
-                            : '未指定'}
-                        </p>
-                      )}
-                    </div>
+      {loading && (
+        <p className="mt-4 text-xs text-slate-400">読み込み中...</p>
+      )}
 
-                    <span
-                      className={`rounded-full px-2 py-1 text-[10px] ${statusBadgeClass(
-                        tx.status,
-                      )}`}
-                    >
-                      {statusLabel(tx.status)}
-                    </span>
+      {error && (
+        <p className="mt-4 text-xs text-rose-400">エラー: {error}</p>
+      )}
+
+      {!loading && !error && txs.length === 0 && (
+        <p className="mt-4 text-xs text-slate-400">
+          まだ記録された取引がありません。
+          「取引リンク作成」画面からリンクを作成し、借り手に開いてもらってください。
+        </p>
+      )}
+
+      <div className="mt-4 space-y-3">
+        {txs.map(tx => {
+          const statusKey = tx.status ?? 'locked'
+          const isLocked = statusKey === 'locked'
+          const isWorking = rowState[tx.id] === 'loading'
+
+          return (
+            <article
+              key={tx.id}
+              className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-2"
+            >
+              <div className="flex justify-between items-center">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-slate-100">
+                    {tx.car_name ?? '（車名未設定）'}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    ホスト: {tx.host_name ?? 'ホスト'}
+                  </p>
+                </div>
+                {renderStatusBadge(tx)}
+              </div>
+
+              <dl className="text-[11px] text-slate-300 space-y-1 mt-1">
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">保証金</dt>
+                  <dd>{tx.deposit} （USDC 想定）</dd>
+                </div>
+                {tx.start_date && (
+                  <div className="flex justify-between">
+                    <dt className="text-slate-400">利用開始日</dt>
+                    <dd>{tx.start_date}</dd>
                   </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <p>評価: {ratingLabel(tx.rating)}</p>
-                    {tx.status === 'locked' && (
-                      <button
-                        type="button"
-                        className="text-[10px] text-amber-300 underline underline-offset-2"
-                        onClick={() => markLocked(tx.id)}
-                      >
-                        ロック中として再読込
-                      </button>
-                    )}
+                )}
+                {tx.end_date && (
+                  <div className="flex justify-between">
+                    <dt className="text-slate-400">利用終了日</dt>
+                    <dd>{tx.end_date}</dd>
                   </div>
+                )}
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">作成日時</dt>
+                  <dd>{new Date(tx.created_at).toLocaleString()}</dd>
+                </div>
+              </dl>
 
-                  {(tx.status === 'pending' || tx.status === 'locked') && (
+              {renderRating(tx)}
+
+              {/* アクションボタン */}
+              <div className="mt-3 flex flex-col gap-2">
+                {isLocked ? (
+                  <>
                     <button
                       type="button"
-                      onClick={() => toggleDetails(tx.id)}
-                      className="mt-2 w-full rounded-lg border border-slate-700 px-3 py-2 text-[11px] text-slate-200 text-left active:scale-[0.99] transition-transform"
+                      onClick={() => handleCompleteWithRating(tx)}
+                      disabled={isWorking}
+                      className="w-full rounded-lg bg-emerald-500 px-3 py-2 text-[11px] font-semibold text-slate-950 text-center active:scale-[0.99] transition-transform disabled:opacity-60"
                     >
-                      {isSelected
-                        ? '▼ 取引完了/キャンセルメニューを閉じる'
-                        : '▶ 取引を完了・キャンセルする'}
+                      {isWorking ? '更新中...' : '取引完了として記録（保証金解放）'}
                     </button>
-                  )}
-
-                  {isSelected &&
-                    (tx.status === 'pending' || tx.status === 'locked') && (
-                      <div className="mt-2 space-y-2 rounded-xl bg-slate-950/60 p-3">
-                        <p className="text-[11px] text-slate-300">
-                          この取引の結果を記録してください。（デモであり、実際のお金には影響しません）
-                        </p>
-
-                        <div className="grid grid-cols-3 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => completeWithRating(tx.id, 'good')}
-                            className="rounded-lg bg-emerald-500/20 px-2 py-2 text-[11px] text-emerald-200 border border-emerald-500/40 active:scale-[0.99] transition-transform"
-                          >
-                            とても良かった
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => completeWithRating(tx.id, 'normal')}
-                            className="rounded-lg bg-slate-700 px-2 py-2 text-[11px] text-slate-50 active:scale-[0.99] transition-transform"
-                          >
-                            問題なく完了
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => completeWithRating(tx.id, 'bad')}
-                            className="rounded-lg bg-rose-500/20 px-2 py-2 text-[11px] text-rose-200 border border-rose-500/40 active:scale-[0.99] transition-transform"
-                          >
-                            トラブルがあった
-                          </button>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => cancelTx(tx.id)}
-                          className="mt-2 w-full rounded-lg border border-slate-700 px-3 py-2 text-[11px] text-slate-300 active:scale-[0.99] transition-transform"
-                        >
-                          取引をキャンセルとして記録する
-                        </button>
-                      </div>
-                    )}
-
-                  {tx.status === 'released' && (
-                    <p className="mt-2 text-[11px] text-emerald-300">
-                      この取引は完了済みとして記録されています。
+                    <button
+                      type="button"
+                      onClick={() => handleCancel(tx)}
+                      disabled={isWorking}
+                      className="w-full rounded-lg border border-slate-700 px-3 py-2 text-[11px] text-slate-200 text-center active:scale-[0.99] transition-transform disabled:opacity-60"
+                    >
+                      {isWorking ? '処理中...' : 'この取引をキャンセルとして記録'}
+                    </button>
+                    <p className="text-[10px] text-slate-500">
+                      ※ Nexus はあくまで合意内容の記録レイヤーです。
+                      実際の送金や返金は、現在はアプリ外で行われている前提です。
                     </p>
-                  )}
-
-                  {tx.status === 'cancelled' && (
-                    <p className="mt-2 text-[11px] text-slate-400">
-                      この取引はキャンセル済みとして記録されています。
-                    </p>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+                  </>
+                ) : (
+                  <p className="text-[10px] text-slate-500">
+                    この取引はすでに
+                    {statusKey === 'released' ? '完了（解放済）' : 'キャンセル'}
+                    として記録されています。
+                  </p>
+                )}
+              </div>
+            </article>
+          )
+        })}
+      </div>
     </Layout>
   )
 }
