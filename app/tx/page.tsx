@@ -5,93 +5,181 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Layout } from '@/components/Layout'
 
-function TxInner() {
-  const search = useSearchParams()
+type SubmitState = 'idle' | 'submitting' | 'done' | 'error'
 
-  const host = search.get('host') || 'ホスト'
-  const car = search.get('car') || '車両'
-  const deposit = search.get('deposit') || '—'
-  const start = search.get('start') || ''
-  const end = search.get('end') || ''
-  const mode = search.get('mode') || 'record'
+function TxPageInner() {
+  const searchParams = useSearchParams()
 
-  const [agreed, setAgreed] = useState(false)
+  const hostName = searchParams.get('host') || 'ホスト'
+  const carName = searchParams.get('car') || ''
+  const depositStr = searchParams.get('deposit') || ''
+  const startDate = searchParams.get('start') || ''
+  const endDate = searchParams.get('end') || ''
 
-  const period =
-    start || end
-      ? `${start || '未指定'} 〜 ${end || '未指定'}`
-      : '未指定'
+  const deposit = depositStr ? Number(depositStr) : NaN
+
+  const [state, setState] = useState<SubmitState>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const [txId, setTxId] = useState<string | null>(null)
+
+  const handleAgree = async () => {
+    setError(null)
+
+    if (!carName || !depositStr || Number.isNaN(deposit)) {
+      alert('リンクの情報が不完全です。ホストに再度リンクを発行してもらってください。')
+      return
+    }
+
+    const ok = window.confirm(
+      `「${carName}」の利用にあたって、保証金 ${deposit}（USDC 想定）のロックに同意しますか？\n\n現在はデモ版のため、実際の送金・ロックは行われず、合意内容のみ記録されます。`,
+    )
+    if (!ok) return
+
+    try {
+      setState('submitting')
+
+      const res = await fetch('/api/nexus/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostName,
+          carName,
+          deposit,
+          startDate: startDate || null,
+          endDate: endDate || null,
+        }),
+      })
+
+      const json = await res.json()
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || '記録に失敗しました')
+      }
+
+      setTxId(json.transaction?.id ?? null)
+      setState('done')
+    } catch (e: any) {
+      setError(e?.message ?? '記録に失敗しました')
+      setState('error')
+    }
+  }
+
+  const invalidLink = !carName || !depositStr || Number.isNaN(deposit)
 
   return (
     <Layout>
       <section className="space-y-2">
-        <h1 className="text-xl font-semibold">保証金の内容を確認</h1>
+        <h1 className="text-xl font-semibold">保証金ロックへの同意</h1>
         <p className="text-xs text-slate-300">
-          {host} さんとのカーシェア取引に関する保証金の条件です。内容を確認し、
-          問題なければ「合意しました」を押してください。
-        </p>
-        <p className="text-[11px] text-amber-300">
-          v1 の Nexus は、保証金の合意内容を記録するためのツールです。
-          この画面でお金が動くことはありません。実際の支払いは、銀行振込や他の手段で当事者間で行ってください。
+          この画面は、ホストから共有されたリンクにもとづいて、
+          カーシェアなどの取引における「保証金ロックへの同意」を記録します。
         </p>
       </section>
 
-      <section className="mt-4 space-y-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-        <div className="space-y-1">
-          <p className="text-[11px] text-slate-400">ホスト</p>
-          <p className="text-sm text-slate-100">{host}</p>
-        </div>
+      <section className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-2">
+        <h2 className="text-xs font-semibold text-slate-200">取引内容</h2>
 
-        <div className="space-y-1">
-          <p className="text-[11px] text-slate-400">車両</p>
-          <p className="text-sm text-slate-100">{car}</p>
-        </div>
+        {invalidLink ? (
+          <p className="text-[11px] text-rose-300">
+            リンクの情報が不足しているか、不正です。
+            一度ホストに確認し、取引リンクを再発行してもらってください。
+          </p>
+        ) : (
+          <dl className="text-[11px] text-slate-300 space-y-1">
+            <div className="flex justify-between">
+              <dt className="text-slate-400">ホスト</dt>
+              <dd>{hostName}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-400">車</dt>
+              <dd>{carName}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-400">保証金</dt>
+              <dd>{deposit}（USDC 想定）</dd>
+            </div>
+            {startDate && (
+              <div className="flex justify-between">
+                <dt className="text-slate-400">利用開始日</dt>
+                <dd>{startDate}</dd>
+              </div>
+            )}
+            {endDate && (
+              <div className="flex justify-between">
+                <dt className="text-slate-400">利用終了日</dt>
+                <dd>{endDate}</dd>
+              </div>
+            )}
+          </dl>
+        )}
 
-        <div className="space-y-1">
-          <p className="text-[11px] text-slate-400">保証金の金額</p>
-          <p className="text-sm text-slate-100">{deposit}</p>
-        </div>
-
-        <div className="space-y-1">
-          <p className="text-[11px] text-slate-400">利用期間</p>
-          <p className="text-sm text-slate-100">{period}</p>
-        </div>
-
-        <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 space-y-1">
-          <p className="text-[11px] text-slate-300 font-semibold">この画面で行われること</p>
-          <ul className="text-[11px] text-slate-400 list-disc list-inside space-y-1">
-            <li>保証金の金額・期間などの条件を確認します。</li>
-            <li>「合意しました」を押すことで、ホストと借り手の間で条件に合意したことを示します。</li>
-            <li>実際の支払いは、アプリ外の手段で行ってください。</li>
-          </ul>
-        </div>
+        <p className="mt-2 text-[10px] text-amber-300">
+          現在のバージョンでは、World App 上のウォレット残高を動かすことはありません。
+          あくまで「どの条件で保証金ロックに同意したか」を Nexus のバックエンド（Supabase）に記録するだけです。
+        </p>
       </section>
 
       <section className="mt-4 space-y-3">
-        <button
-          type="button"
-          onClick={() => setAgreed(true)}
-          className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 text-center active:scale-[0.99] transition-transform"
-        >
-          {agreed ? '合意を記録しました ✅' : 'この内容で保証金に合意しました'}
-        </button>
-        {agreed && (
-          <p className="text-[11px] text-emerald-300">
-            合意いただきありがとうございます。支払い方法やタイミングについては、ホストとチャット等で確認してください。
-          </p>
+        {state === 'done' ? (
+          <div className="rounded-2xl border border-emerald-600/40 bg-emerald-900/20 p-4 space-y-2">
+            <p className="text-sm font-semibold text-emerald-200">
+              保証金ロックへの同意を記録しました。
+            </p>
+            {txId && (
+              <p className="text-[11px] text-emerald-200">
+                取引ID: <span className="font-mono">{txId}</span>
+              </p>
+            )}
+            <p className="text-[11px] text-emerald-100">
+              取引が完了すると、ホスト側の画面から「完了」または「キャンセル」としてステータスが更新されます。
+            </p>
+            <Link
+              href="/"
+              className="inline-flex mt-2 rounded-lg border border-emerald-500/60 px-3 py-2 text-[11px] text-emerald-100 active:scale-[0.99] transition-transform"
+            >
+              Nexus ホームに戻る
+            </Link>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              disabled={invalidLink || state === 'submitting'}
+              onClick={handleAgree}
+              className="w-full rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 text-center active:scale-[0.99] transition-transform disabled:opacity-60"
+            >
+              {state === 'submitting'
+                ? '記録中...'
+                : 'この内容で保証金ロックに同意して記録する'}
+            </button>
+
+            {error && (
+              <p className="text-[11px] text-rose-300">
+                エラー: {error}
+              </p>
+            )}
+          </>
         )}
       </section>
 
       <footer className="mt-4 pt-3 border-t border-slate-900 flex items-center justify-between">
-        <Link
-          href="/mini"
-          className="text-[10px] text-slate-400 underline underline-offset-2 hover:text-slate-200"
-        >
-          Nexus ホームへ戻る
-        </Link>
-        <span className="text-[10px] text-slate-500">
-          モード: {mode === 'record' ? '記録用 v1' : mode}
-        </span>
+        <p className="text-[10px] text-slate-500">
+          © {new Date().getFullYear()} Nexus
+        </p>
+        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+          <Link
+            href="/legal/terms"
+            className="hover:text-slate-200 underline underline-offset-2"
+          >
+            利用規約
+          </Link>
+          <Link
+            href="/legal/privacy"
+            className="hover:text-slate-200 underline underline-offset-2"
+          >
+            プライバシーポリシー
+          </Link>
+        </div>
       </footer>
     </Layout>
   )
@@ -102,11 +190,11 @@ export default function TxPage() {
     <Suspense
       fallback={
         <Layout>
-          <p className="text-xs text-slate-400">読み込み中…</p>
+          <p className="mt-4 text-xs text-slate-400">リンク情報を読み込み中...</p>
         </Layout>
       }
     >
-      <TxInner />
+      <TxPageInner />
     </Suspense>
   )
 }
